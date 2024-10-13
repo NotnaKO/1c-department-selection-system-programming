@@ -1,7 +1,6 @@
 mod server;
 
 use clap::Parser;
-use tokio::io::AsyncReadExt;
 use server::Server;
 use tracing::info;
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
@@ -35,14 +34,12 @@ async fn main() {
     let address = &args.address;
 
     info!("Starting server at {}", address);
-    let server = Server::new(&args.address).await;
+    let mut server = Server::new(&args.address).await;
     info!("Server started");
 
-    println!("Enter a number to experiment:");
-    let mut input = String::with_capacity(10);
-
     loop {
-        input.clear();
+        let mut input = String::with_capacity(10);
+        println!("Enter a number to experiment:");
         match std::io::stdin().read_line(&mut input) {
             Ok(_) => {}
             Err(e) => {
@@ -50,19 +47,24 @@ async fn main() {
                 continue;
             }
         }
-        match input.trim().parse::<u32>() { 
+        match input.trim().parse::<u32>() {
             Ok(num) => {
                 server.start_experiment(num).await;
-                break;
+                println!(
+                    "Experiment started, now start register waiters, waiting for 'exit', 'start' or 'stat'"
+                );
+                input.clear();
+                std::io::stdin().read_line(&mut input).unwrap();
+                if input.trim() == "exit" {
+                    break;
+                }
             }
             Err(e) => {
                 eprintln!("Failed to parse input: {}", e);
             }
         }
     }
-    println!("Experiment started, now start register waiters, waiting for command Ctrl+C to exit");
-    
-    tokio::signal::ctrl_c().await.unwrap();
+
     info!("Shutting down server");
     server.shutdown().await;
     info!("Server shut down");
