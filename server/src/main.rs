@@ -1,4 +1,5 @@
 mod server;
+mod leaderboard;
 
 use clap::Parser;
 use server::Server;
@@ -57,6 +58,12 @@ async fn main() {
                 std::io::stdin().read_line(&mut input).unwrap();
                 if input.trim() == "exit" {
                     break;
+                }
+                if input.trim() == "stat" {
+                    let scores = server.leaderboard.lock().await.get_scores().await;
+                    for (client, score) in scores {
+                        println!("Client {} scored {}", client, score);
+                    }
                 }
             }
             Err(e) => {

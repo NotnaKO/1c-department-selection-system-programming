@@ -5,15 +5,11 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::Mutex;
 use tracing::{error, info};
-
-#[derive(Debug)]
-enum Message {
-    StartExperiment,
-    Guess { client_id: usize, guess: u32 },
-}
+use crate::leaderboard::Leaderboard;
 
 pub struct Server {
     clients: Arc<Mutex<HashMap<usize, Arc<Mutex<TcpStream>>>>>,
+    pub leaderboard: Arc<Mutex<Leaderboard>>,
 }
 
 impl Server {
@@ -27,6 +23,7 @@ impl Server {
 
         let server = Server {
             clients: clients.clone(),
+            leaderboard: Arc::new(Mutex::new(Leaderboard::new())),
         };
 
         let clients_for_accept = clients.clone();
@@ -63,8 +60,10 @@ impl Server {
             let copy_clients = self.clients.clone();
             let num_copy = num.clone();
             let client_id_copy = client_id.clone();
+            let leaderboard = self.leaderboard.clone();
             tokio::spawn(async move {
                 let client_id = client_id_copy;
+                let mut count = 0;
                 let mut buf = [0; Self::BUFFER_SIZE];
                 let socket = copy_clients
                     .lock()
@@ -88,10 +87,13 @@ impl Server {
                         let response = if guess == number {
                             "=".to_string()
                         } else if guess < number {
+                            count += 1;
                             "<".to_string()
                         } else {
+                            count += 1;
                             ">".to_string()
                         };
+                        leaderboard.lock().await.update_score(client_id, count).await;
 
                         info!("Sending response {} to client {}", response, client_id);
                         if let Some(client) = copy_clients.lock().await.get_mut(&client_id) {
