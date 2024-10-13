@@ -1,9 +1,18 @@
 use std::io;
 use std::io::{Read, Write};
 use std::net::TcpStream;
+use clap::Parser;
+
+#[derive(Parser)]
+struct Args {
+    /// Address to bind the server to
+    #[clap(short, long, default_value = "127.0.0.1:8080")]
+    address: String,
+}
 
 fn main() -> io::Result<()> {
-    let mut stream = TcpStream::connect("127.0.0.1:8080")?;
+    let args = Args::parse();
+    let mut stream = TcpStream::connect(&args.address)?;
     let mut buf = [0; 1024];
 
     loop {
